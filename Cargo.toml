@@ -8,8 +8,8 @@ license = "MIT"
 readme = "README.md"
 keywords = ["expo", "push notifications", "react native"]
 categories = ["api-bindings", "web-programming"]
-documentation = "..."
-repository = "..."
+documentation = "https://docs.expo.io/versions/latest/sdk/notifications"
+repository = "https://github.com/expo/expo-server-sdk-rust"
 
 [lib]
 name = "expo_server_sdk"
