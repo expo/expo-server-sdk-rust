@@ -26,8 +26,6 @@
 #![recursion_limit = "1024"]
 
 extern crate failure;
-#[macro_use]
-extern crate failure_derive;
 
 extern crate flate2;
 extern crate reqwest;
@@ -289,7 +287,6 @@ pub struct PushNotifier {
     client: reqwest::Client,
 }
 
-// TODO default vals todo
 impl PushNotifier {
     pub fn new() -> PushNotifier {
         PushNotifier {
