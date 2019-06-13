@@ -36,7 +36,7 @@ extern crate serde;
 extern crate serde_json;
 
 use reqwest::header::{
-    qitem, Accept, AcceptEncoding, ContentEncoding, ContentType, Encoding, Headers,
+    ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE, HeaderMap
 };
 use std::str::FromStr;
 
@@ -369,16 +369,14 @@ impl PushNotifier {
         body: &str,
         should_compress: bool,
     ) -> Result<reqwest::Response, Error> {
-        let mut headers = Headers::new();
-        headers.set(Accept::json());
-        headers.set(AcceptEncoding(vec![
-            qitem(Encoding::Gzip),
-            qitem(Encoding::Deflate),
-        ]));
-        headers.set(ContentType::json());
+        let mut headers = HeaderMap::new();
+        headers.insert(ACCEPT, "application/json".parse().unwrap());
+        headers.insert(ACCEPT_ENCODING, "gzip".parse().unwrap());
+        headers.insert(ACCEPT_ENCODING, "deflate".parse().unwrap());
+        headers.insert(CONTENT_TYPE, "application/json".parse().unwrap());
 
         if should_compress {
-            headers.set(ContentEncoding(vec![Encoding::Gzip]));
+            headers.insert(CONTENT_ENCODING, "gzip".parse().unwrap());
             let gzip_body = self.gzip_request(body)?;
             self.construct_body(url, headers, gzip_body)
         } else {
@@ -389,7 +387,7 @@ impl PushNotifier {
     fn construct_body<T: Into<reqwest::Body>>(
         &self,
         url: &str,
-        headers: Headers,
+        headers: HeaderMap,
         body: T,
     ) -> Result<reqwest::Response, Error> {
         let response = self
