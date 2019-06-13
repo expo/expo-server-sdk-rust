@@ -3,7 +3,6 @@ extern crate expo_server_sdk;
 #[macro_use]
 extern crate serde_json;
 
-#[macro_use]
 extern crate structopt;
 
 use expo_server_sdk::*;
@@ -16,7 +15,7 @@ fn run(msg: &PushMessage) {
     let result = push_notifier.send_push_notification(msg);
     if let Err(ref e) = result {
         println!("Error: {}", e);
-        for e in e.causes() {
+        for e in e.iter_chain() {
             println!("caused by: {}", e);
         }
         println!("backtrace: {:?}", e.backtrace());
