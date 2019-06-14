@@ -21,7 +21,7 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
-reqwest = "0.8"
+reqwest = "0.9.18"
 serde_json = "1"
 serde_derive = "1"
 serde = "1"
