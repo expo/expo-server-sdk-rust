@@ -64,6 +64,12 @@ impl FromStr for PushToken {
     }
 }
 
+impl Into<String> for PushToken {
+    fn into(self) -> String {
+        self.0
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct PushResponse<T>
 where
