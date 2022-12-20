@@ -2,8 +2,12 @@ extern crate expo_server_sdk;
 
 #[cfg(test)]
 mod tests {
-    use expo_server_sdk::*;
     use std::str::FromStr;
+
+    use expo_server_sdk::{
+        message::{Priority, PushMessage, PushToken, Sound},
+        *,
+    };
 
     #[tokio::test]
     async fn send_push_notification() {
