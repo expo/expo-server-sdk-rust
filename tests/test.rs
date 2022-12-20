@@ -5,11 +5,11 @@ mod tests {
     use expo_server_sdk::*;
     use std::str::FromStr;
 
-    #[test]
-    fn send_push_notification() {
+    #[tokio::test]
+    async fn send_push_notification() {
         let msg = create_push_message();
         let push_notifier = PushNotifier::new();
-        let result = push_notifier.send_push_notification(&msg);
+        let result = push_notifier.send_push_notification(&msg).await;
 
         if let Ok(result) = result {
             // Ensure that the receipts are either 'error' or 'ok'
@@ -19,23 +19,23 @@ mod tests {
         }
     }
 
-    #[test]
-    fn send_push_notifications_default_chunks() {
+    #[tokio::test]
+    async fn send_push_notifications_default_chunks() {
         let push_notifier = PushNotifier::new();
-        send_push_notifications(push_notifier);
+        send_push_notifications(push_notifier).await;
     }
 
-    #[test]
-    fn send_push_notifications_small_chunks() {
+    #[tokio::test]
+    async fn send_push_notifications_small_chunks() {
         let push_notifier = PushNotifier::new().with_pushes_per_request(2);
-        send_push_notifications(push_notifier);
+        send_push_notifications(push_notifier).await;
     }
 
-    fn send_push_notifications(push_notifier: PushNotifier) {
+    async fn send_push_notifications(push_notifier: PushNotifier) {
         let n = 10;
         let msg = create_push_message();
         let msgs = create_n_notifications(n, msg);
-        let result = push_notifier.send_push_notifications(&msgs);
+        let result = push_notifier.send_push_notifications(&msgs).await;
 
         if let Ok(receipts) = result {
             // Ensure we get n receipts back

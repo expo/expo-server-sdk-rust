@@ -1,6 +1,7 @@
 [package]
 name = "expo-server-sdk"
 version = "0.1.0"
+edition = "2021"
 authors = ["quin <quin@expo.io>"]
 description = "Server side library for working with Expo using Rust. Includes a client to send push notifications to users of your mobile app using the Expo push notification services."
 homepage = "https://docs.expo.io"
@@ -11,22 +12,13 @@ categories = ["api-bindings", "web-programming"]
 documentation = "https://docs.expo.io/versions/latest/guides/push-notifications"
 repository = "https://github.com/expo/expo-server-sdk-rust"
 
-[lib]
-name = "expo_server_sdk"
-path = "src/lib.rs"
-
-[[bin]]
-name = "expo-server"
-path = "src/main.rs"
-doc = false
-
 [dependencies]
-reqwest = {version = "0.10.4", features = ["blocking", "json"]}
+reqwest = {version = "0.11.13", features = ["json"]}
 serde_json = "1"
-serde_derive = "1"
-serde = "1"
+serde = {version = "1", features = ["derive"]}
 failure = "0.1"
 failure_derive = "0.1"
 flate2 = "1.0"
-clap = {version = "2.31", features = ["yaml"]}
-structopt = "0.2"
+
+[dev-dependencies]
+tokio = {version = "1.23", features = ["test-util", "macros"]}

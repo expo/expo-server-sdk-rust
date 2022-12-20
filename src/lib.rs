@@ -23,21 +23,8 @@
 //!     println!("Push Notification Response: \n \n {:#?}", result);
 //! }
 //! ```
-#![recursion_limit = "1024"]
-
-extern crate failure;
-
-extern crate flate2;
-extern crate reqwest;
-
-#[macro_use]
-extern crate serde_derive;
-extern crate serde;
-extern crate serde_json;
-
-use reqwest::header::{
-    ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE, HeaderMap
-};
+use reqwest::header::{HeaderMap, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE};
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use failure::Error;
@@ -284,7 +271,7 @@ pub struct PushNotifier {
     pub url: String,
     pub pushes_per_request: usize,
     pub gzip_policy: GzipPolicy,
-    client: reqwest::blocking::Client,
+    client: reqwest::Client,
 }
 
 impl PushNotifier {
@@ -293,7 +280,7 @@ impl PushNotifier {
             url: "https://exp.host/--/api/v2/push/send".to_string(),
             pushes_per_request: 100,
             gzip_policy: GzipPolicy::default(),
-            client: reqwest::blocking::Client::new(),
+            client: reqwest::Client::new(),
         }
     }
 
@@ -319,29 +306,33 @@ impl PushNotifier {
     }
 
     /// Sends a vector of `PushMessage` to the push notification server.
-    pub fn send_push_notifications(
+    pub async fn send_push_notifications(
         &self,
         messages: &[PushMessage],
     ) -> Result<Vec<PushReceipt<Value>>, Error> {
         let iter = messages.chunks(self.pushes_per_request);
         let mut responses: Vec<PushReceipt<Value>> = Vec::new();
         for chunk in iter {
-            let mut response = self.send_push_notifications_chunk(&self.url, &chunk)?;
+            let mut response = self
+                .send_push_notifications_chunk(&self.url, &chunk)
+                .await?;
             responses.append(&mut response);
         }
         Ok(responses)
     }
 
     /// Sends a single `PushMessage` to the push notification server.
-    pub fn send_push_notification(
+    pub async fn send_push_notification(
         &self,
         message: &PushMessage,
     ) -> Result<PushReceipt<Value>, Error> {
-        let mut result = self.send_push_notifications_chunk(&self.url, &[message.clone()])?;
+        let mut result = self
+            .send_push_notifications_chunk(&self.url, &[message.clone()])
+            .await?;
         Ok(result.pop().unwrap())
     }
 
-    fn send_push_notifications_chunk(
+    async fn send_push_notifications_chunk(
         &self,
         url: &str,
         messages: &[PushMessage],
@@ -358,17 +349,17 @@ impl PushNotifier {
                 }
             }
         };
-        let res = self.request_async(url, &body, should_compress)?;
-        let res = res.json::<PushResponse<Value>>()?;
+        let res = self.request_async(url, &body, should_compress).await?;
+        let res = res.json::<PushResponse<Value>>().await?;
         Ok(res.data)
     }
 
-    fn request_async(
+    async fn request_async(
         &self,
         url: &str,
         body: &str,
         should_compress: bool,
-    ) -> Result<reqwest::blocking::Response, Error> {
+    ) -> Result<reqwest::Response, Error> {
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT, "application/json".parse().unwrap());
         headers.insert(ACCEPT_ENCODING, "gzip".parse().unwrap());
@@ -378,24 +369,25 @@ impl PushNotifier {
         if should_compress {
             headers.insert(CONTENT_ENCODING, "gzip".parse().unwrap());
             let gzip_body = self.gzip_request(body)?;
-            self.construct_body(url, headers, gzip_body)
+            self.construct_body(url, headers, gzip_body).await
         } else {
-            self.construct_body(url, headers, body.to_owned())
+            self.construct_body(url, headers, body.to_owned()).await
         }
     }
 
-    fn construct_body<T: Into<reqwest::blocking::Body>>(
+    async fn construct_body<T: Into<reqwest::Body>>(
         &self,
         url: &str,
         headers: HeaderMap,
         body: T,
-    ) -> Result<reqwest::blocking::Response, Error> {
+    ) -> Result<reqwest::Response, Error> {
         let response = self
             .client
             .post(url)
             .headers(headers)
             .body(body)
-            .send()?
+            .send()
+            .await?
             .error_for_status()?;
         Ok(response)
     }
