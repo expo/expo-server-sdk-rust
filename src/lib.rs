@@ -60,6 +60,8 @@ use std::borrow::Borrow;
 pub struct PushNotifier {
     pub url: Url,
     pub authorization: Option<String>,
+    pub gzip: bool,
+    pub chunk_size: usize,
     client: reqwest::Client,
 }
 
@@ -69,6 +71,8 @@ impl PushNotifier {
         PushNotifier {
             url: "https://exp.host/--/api/v2/push/send".parse().unwrap(),
             authorization: None,
+            gzip: true,
+            chunk_size: 100,
             client: reqwest::Client::builder().gzip(true).build().unwrap(),
         }
     }
@@ -85,14 +89,22 @@ impl PushNotifier {
         self
     }
 
+    pub fn gzip(mut self, gzip: bool) -> Self {
+        self.gzip = gzip;
+        self
+    }
+
+    pub fn chunk_size(mut self, chunk_size: usize) -> Self {
+        self.chunk_size = chunk_size;
+        self
+    }
+
     /// Sends a single [`PushMessage`] to the push notification server.
     pub async fn send_push_notification(
         &self,
         message: &PushMessage,
     ) -> Result<PushReceipt<Value>, ExpoNotificationError> {
-        let mut result = self
-            .send_push_notifications_chunk(&[message], false)
-            .await?;
+        let mut result = self.send_push_notifications_chunk(&[message]).await?;
         Ok(result.pop().unwrap())
     }
 
@@ -102,16 +114,14 @@ impl PushNotifier {
     pub async fn send_push_notifications_iter(
         &self,
         messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
-        gzip: bool,
-        chunk_size: usize,
     ) -> Result<Vec<PushReceipt<Value>>, ExpoNotificationError> {
         let mut messages = messages.into_iter();
-        let mut chunk = Vec::with_capacity(chunk_size);
+        let mut chunk = Vec::with_capacity(self.chunk_size);
         let mut receipts = Vec::with_capacity(messages.size_hint().1.unwrap_or_default());
         loop {
             while let Some(message) = messages.next() {
                 chunk.push(message);
-                if chunk.len() == chunk_size {
+                if chunk.len() == self.chunk_size {
                     break;
                 }
             }
@@ -119,7 +129,7 @@ impl PushNotifier {
                 break;
             }
             receipts.extend(
-                self.send_push_notifications_chunk(&*chunk, gzip)
+                self.send_push_notifications_chunk(&*chunk)
                     .await?
                     .into_iter(),
             );
@@ -137,9 +147,8 @@ impl PushNotifier {
     pub async fn send_push_notifications_chunk(
         &self,
         messages: &[impl Borrow<PushMessage>],
-        gzip: bool,
     ) -> Result<Vec<PushReceipt<Value>>, ExpoNotificationError> {
-        let res = self.request_async(messages, gzip).await?;
+        let res = self.request_async(messages).await?;
         let res = res.json::<PushResponse<Value>>().await?;
         Ok(res.data)
     }
@@ -147,7 +156,6 @@ impl PushNotifier {
     async fn request_async(
         &self,
         messages: &[impl Borrow<PushMessage>],
-        should_compress: bool,
     ) -> Result<reqwest::Response, ExpoNotificationError> {
         let mut req = self
             .client
@@ -161,7 +169,7 @@ impl PushNotifier {
             req = req.bearer_auth(auth_token);
         }
 
-        let req = if should_compress {
+        let req = if self.gzip {
             let bytes = bytes::BytesMut::new();
             let mut encoder = GzEncoder::new(bytes.writer(), Compression::default());
             serde_json::to_writer(&mut encoder, &serialize_messages(messages)).unwrap();

@@ -27,22 +27,22 @@ mod tests {
 
     #[tokio::test]
     async fn send_push_notifications_gzip() {
-        let push_notifier = PushNotifier::new();
-        send_push_notifications(push_notifier, true, 3).await;
+        let push_notifier = PushNotifier::new().gzip(true);
+        send_push_notifications(push_notifier).await;
     }
 
     #[tokio::test]
     async fn send_push_notifications_no_gzip() {
-        let push_notifier = PushNotifier::new();
-        send_push_notifications(push_notifier, false, 3).await;
+        let push_notifier = PushNotifier::new().gzip(false);
+        send_push_notifications(push_notifier).await;
     }
 
-    async fn send_push_notifications(push_notifier: PushNotifier, gzip: bool, chunk_size: usize) {
+    async fn send_push_notifications(push_notifier: PushNotifier) {
         let n = 10;
         let msg = create_push_message();
         let msgs = create_n_notifications(n, msg);
         let result = push_notifier
-            .send_push_notifications_iter(msgs.iter(), gzip, chunk_size)
+            .send_push_notifications_iter(msgs.iter())
             .await;
         match result {
             Ok(receipts) => {
