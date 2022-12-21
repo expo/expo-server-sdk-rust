@@ -21,4 +21,5 @@ thiserror = "1"
 flate2 = "1.0"
 
 [dev-dependencies]
-tokio = {version = "1.23", features = ["test-util", "macros"]}
+tokio = {version = "1.23", features = ["macros"]}
+tokio-test = "0.4"

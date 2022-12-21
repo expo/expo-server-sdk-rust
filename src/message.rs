@@ -90,9 +90,8 @@ impl FromStr for Sound {
 /// ## Example:
 ///
 /// ```
-/// extern crate expo_server_sdk;
-/// use expo_server_sdk::*;
-/// use std::str::FromStr;
+/// # use expo_server_sdk::message::*;
+/// # use std::str::FromStr;
 ///
 /// let token = PushToken::from_str("ExpoPushToken[my-token]").unwrap();
 /// let mut msg = PushMessage::new(token).body("test notification");

@@ -9,19 +9,19 @@
 //! ## Example: Sending a push notification
 //!
 //! ```
-//! extern crate expo_server_sdk;
-//! use expo_server_sdk::*;
-//! use std::str::FromStr;
-//!
+//! # use expo_server_sdk::{PushNotifier, message::*};
+//! # use std::str::FromStr;
+//! # tokio_test::block_on(async {
 //! let token = PushToken::from_str("ExpoPushToken[my-token]").unwrap();
 //! let mut msg = PushMessage::new(token).body("test notification");
 //!
-//! let push_notifier = PushNotifier::new().gzip_policy(GzipPolicy::Always);
-//! let result = push_notifier.send_push_notification(&msg);
+//! let push_notifier = PushNotifier::new();
+//! let result = push_notifier.send_push_notification(&msg).await;
 //!
 //! if let Ok(result) = result {
 //!     println!("Push Notification Response: \n \n {:#?}", result);
 //! }
+//! # })
 //! ```
 
 pub mod error;
@@ -46,16 +46,17 @@ use std::borrow::Borrow;
 /// ## Example:
 ///
 /// ```
-/// extern crate expo_server_sdk;
-/// use expo_server_sdk::*;
-/// use std::str::FromStr;
+/// # use expo_server_sdk::{PushNotifier, message::*};
+/// # use std::str::FromStr;
+/// # tokio_test::block_on(async {
+///     let token = PushToken::from_str("ExpoPushToken[my-token]").unwrap();
+///     let mut msg = PushMessage::new(token).body("test notification");
 ///
-/// let token = PushToken::from_str("ExpoPushToken[my-token]").unwrap();
-/// let mut msg = PushMessage::new(token).body("test notification");
-///
-/// let push_notifier = PushNotifier::new().gzip_policy(GzipPolicy::Always);
-/// let result = push_notifier.send_push_notification(&msg);
+///     let push_notifier = PushNotifier::new();
+///     let result = push_notifier.send_push_notification(&msg);
+/// # });
 /// ```
+///
 pub struct PushNotifier {
     pub url: Url,
     client: reqwest::Client,
