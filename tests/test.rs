@@ -6,18 +6,19 @@ mod tests {
 
     use expo_server_sdk::{
         message::{Priority, PushMessage, PushToken, Sound},
+        response::PushTicket,
         PushNotifier,
     };
 
     #[tokio::test]
     async fn send_push_notification() {
         let msg = create_push_message();
-        let push_notifier = PushNotifier::new();
+        let push_notifier = create_push_notifier();
         let result = push_notifier.send_push_notification(&msg).await;
 
         match result {
-            Ok(res) => {
-                assert!(res.status == "error" || res.status == "ok");
+            Ok(ticket) => {
+                check_ticket(ticket);
             }
             Err(e) => {
                 panic!("push notifier encountered an error {e:?}");
@@ -27,13 +28,13 @@ mod tests {
 
     #[tokio::test]
     async fn send_push_notifications_gzip() {
-        let push_notifier = PushNotifier::new().gzip(true);
+        let push_notifier = create_push_notifier().gzip(true);
         send_push_notifications(push_notifier).await;
     }
 
     #[tokio::test]
     async fn send_push_notifications_no_gzip() {
-        let push_notifier = PushNotifier::new().gzip(false);
+        let push_notifier = create_push_notifier().gzip(false);
         send_push_notifications(push_notifier).await;
     }
 
@@ -50,9 +51,7 @@ mod tests {
                 assert_eq!(n, receipts.len() as i32);
 
                 // Ensure that the receipts are either 'error' or 'ok'
-                for receipt in receipts.iter() {
-                    assert!(receipt.status == "error" || receipt.status == "ok");
-                }
+                receipts.into_iter().for_each(check_ticket);
             }
             Err(e) => {
                 panic!("push notifier encountered an error {e:?}");
@@ -62,7 +61,11 @@ mod tests {
 
     fn create_push_message() -> PushMessage {
         PushMessage {
-            to: PushToken::from_str("ExponentPushToken[abcdef1245]").unwrap(),
+            to: PushToken::from_str(
+                &std::env::var("EXPO_SDK_RUST_TEST_PUSH_TOKEN")
+                    .unwrap_or("ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]".into()),
+            )
+            .unwrap(),
             data: None,
             title: Some("hello".to_owned()),
             body: None,
@@ -73,6 +76,9 @@ mod tests {
             badge: None,
         }
     }
+    fn create_push_notifier() -> PushNotifier {
+        PushNotifier::new().authorization(std::env::var("EXPO_SDK_RUST_TEST_AUTH_TOKEN").ok())
+    }
 
     fn create_n_notifications(n: i32, msg: PushMessage) -> Vec<PushMessage> {
         let mut msgs: Vec<PushMessage> = Vec::new();
@@ -80,5 +86,16 @@ mod tests {
             msgs.push(msg.clone());
         }
         msgs
+    }
+
+    fn check_ticket(ticket: PushTicket) {
+        match ticket {
+            PushTicket::Ok { .. } => {
+                // good!
+            }
+            PushTicket::Error { message, details } => {
+                panic!("push ticket gives an error {message} {details:?}");
+            }
+        }
     }
 }

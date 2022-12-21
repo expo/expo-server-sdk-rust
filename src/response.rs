@@ -1,22 +1,36 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct PushResponse<T>
-where
-    T: std::fmt::Debug,
-{
-    pub data: Vec<PushReceipt<T>>,
+pub(crate) struct PushResponse {
+    pub data: Vec<PushTicket>,
 }
 
-/// See [the Expo documentation on Push Notifications] for details about the push notifications response from the server.
-///
-/// [the Expo documentation on Push Notifications]: https://docs.expo.io/versions/latest/guides/push-notifications#response-format
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct PushReceipt<T>
-where
-    T: std::fmt::Debug,
-{
-    pub status: String,
-    pub message: Option<String>,
-    pub details: Option<T>,
+pub struct PushReceiptId(String);
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "status")]
+pub enum PushTicket {
+    #[serde(rename = "ok")]
+    Ok { id: PushReceiptId },
+    #[serde(rename = "error")]
+    Error {
+        message: String,
+        details: Option<PushReceiptErrorDetails>,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum PushReceiptErrorDetails {
+    KnownError { error: PushReceiptErrorCause },
+    UnknownError(serde_json::Value),
+}
+
+#[derive(Debug, Deserialize)]
+pub enum PushReceiptErrorCause {
+    DeviceNotRegistered,
+    InvalidCredentials,
+    MessageTooBig,
+    MessageRateExceeded,
 }

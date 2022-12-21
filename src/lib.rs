@@ -34,8 +34,7 @@ use reqwest::{
     header::{HeaderValue, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE},
     Url,
 };
-use response::{PushReceipt, PushResponse};
-use serde_json::value::Value;
+use response::{PushResponse, PushTicket};
 use std::borrow::Borrow;
 
 /// The `PushNotifier` takes one or more `PushMessage` to send to the push notification server
@@ -100,7 +99,7 @@ impl PushNotifier {
     pub async fn send_push_notification(
         &self,
         message: &PushMessage,
-    ) -> Result<PushReceipt<Value>, ExpoNotificationError> {
+    ) -> Result<PushTicket, ExpoNotificationError> {
         let mut result = self.send_push_notifications_chunk(&[message]).await?;
         Ok(result.pop().unwrap())
     }
@@ -111,7 +110,7 @@ impl PushNotifier {
     pub async fn send_push_notifications_iter(
         &self,
         messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
-    ) -> Result<Vec<PushReceipt<Value>>, ExpoNotificationError> {
+    ) -> Result<Vec<PushTicket>, ExpoNotificationError> {
         let mut messages = messages.into_iter();
         let mut chunk = Vec::with_capacity(self.chunk_size);
         let mut receipts = Vec::with_capacity(messages.size_hint().1.unwrap_or_default());
@@ -144,9 +143,9 @@ impl PushNotifier {
     pub async fn send_push_notifications_chunk(
         &self,
         messages: &[impl Borrow<PushMessage>],
-    ) -> Result<Vec<PushReceipt<Value>>, ExpoNotificationError> {
+    ) -> Result<Vec<PushTicket>, ExpoNotificationError> {
         let res = self.request_async(messages).await?;
-        let res = res.json::<PushResponse<Value>>().await?;
+        let res = res.json::<PushResponse>().await?;
         Ok(res.data)
     }
 
