@@ -15,11 +15,13 @@ mod tests {
         let push_notifier = PushNotifier::new();
         let result = push_notifier.send_push_notification(&msg).await;
 
-        if let Ok(result) = result {
-            // Ensure that the receipts are either 'error' or 'ok'
-            assert!(result.status == "error" || result.status == "ok");
-        } else {
-            panic!("push notifier encountered an error");
+        match result {
+            Ok(res) => {
+                assert!(res.status == "error" || res.status == "ok");
+            }
+            Err(e) => {
+                panic!("push notifier encountered an error {e:?}");
+            }
         }
     }
 
@@ -42,17 +44,19 @@ mod tests {
         let result = push_notifier
             .send_push_notifications_iter(msgs.iter(), gzip, chunk_size)
             .await;
+        match result {
+            Ok(receipts) => {
+                // Ensure we get n receipts back
+                assert_eq!(n, receipts.len() as i32);
 
-        if let Ok(receipts) = result {
-            // Ensure we get n receipts back
-            assert_eq!(n, receipts.len() as i32);
-
-            // Ensure that the receipts are either 'error' or 'ok'
-            for receipt in receipts.iter() {
-                assert!(receipt.status == "error" || receipt.status == "ok");
+                // Ensure that the receipts are either 'error' or 'ok'
+                for receipt in receipts.iter() {
+                    assert!(receipt.status == "error" || receipt.status == "ok");
+                }
             }
-        } else {
-            panic!("push notifier encountered an error");
+            Err(e) => {
+                panic!("push notifier encountered an error {e:?}");
+            }
         }
     }
 
@@ -60,7 +64,7 @@ mod tests {
         PushMessage {
             to: PushToken::from_str("ExponentPushToken[abcdef1245]").unwrap(),
             data: None,
-            title: None,
+            title: Some("hello".to_owned()),
             body: None,
             sound: Some(Sound::default()),
             ttl: None,
