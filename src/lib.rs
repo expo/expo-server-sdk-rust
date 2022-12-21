@@ -29,7 +29,7 @@ pub mod message;
 pub mod response;
 
 use error::ExpoNotificationError;
-use message::{serialize_messages, PushMessage};
+use message::PushMessage;
 use reqwest::{
     header::{HeaderValue, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE},
     Url,
@@ -103,35 +103,25 @@ impl PushNotifier {
         &self,
         message: &PushMessage,
     ) -> Result<PushTicket, ExpoNotificationError> {
-        let mut result = self.send_push_notifications_chunk(&[message]).await?;
+        let mut result = self
+            .send_push_notifications_in_one_chunk(std::iter::once(message))
+            .await?;
         Ok(result.pop().unwrap())
     }
 
     /// Sends an iterator of [`PushMessage`] to the server.
     /// This method automatically chunks the input message iterator.
-    pub async fn send_push_notifications_iter(
+    pub async fn send_push_notifications(
         &self,
         messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
     ) -> Result<Vec<PushTicket>, ExpoNotificationError> {
-        let mut messages = messages.into_iter();
-        let mut chunk = Vec::with_capacity(self.chunk_size);
-        let mut receipts = Vec::with_capacity(messages.size_hint().1.unwrap_or_default());
-        loop {
-            while let Some(message) = messages.next() {
-                chunk.push(message);
-                if chunk.len() == self.chunk_size {
-                    break;
-                }
-            }
-            if chunk.is_empty() {
-                break;
-            }
-            receipts.extend(
-                self.send_push_notifications_chunk(&*chunk)
-                    .await?
-                    .into_iter(),
-            );
-            chunk.clear();
+        let mut messages = messages.into_iter().peekable();
+        let mut receipts = Vec::with_capacity(messages.size_hint().1.unwrap_or(0));
+        while messages.peek().is_some() {
+            let chunk_receipts = self
+                .send_push_notifications_in_one_chunk(messages.by_ref().take(self.chunk_size))
+                .await?;
+            receipts.extend(chunk_receipts.into_iter());
         }
         Ok(receipts)
     }
@@ -142,19 +132,21 @@ impl PushNotifier {
     ///
     /// If the provided messages chunk contains more than 100 items this might fail.
     /// Prefer the `send_push_notification_iter` in such situation.
-    pub async fn send_push_notifications_chunk(
+    pub async fn send_push_notifications_in_one_chunk(
         &self,
-        messages: &[impl Borrow<PushMessage>],
+        messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
     ) -> Result<Vec<PushTicket>, ExpoNotificationError> {
-        let res = self.request_async(messages).await?;
+        let res = self.request_async(messages.into_iter()).await?;
         let res = res.json::<PushResponse>().await?;
         Ok(res.data)
     }
 
     async fn request_async(
         &self,
-        messages: &[impl Borrow<PushMessage>],
+        messages: impl Iterator<Item = impl Borrow<PushMessage>>,
     ) -> Result<reqwest::Response, ExpoNotificationError> {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
         let mut req = self
             .client
             .post(self.url.clone())
@@ -167,20 +159,20 @@ impl PushNotifier {
             req = req.bearer_auth(auth_token);
         }
 
-        let req = if self.gzip {
-            use bytes::BufMut;
-            use flate2::write::GzEncoder;
-            use flate2::Compression;
+        let mut buffer = Vec::new();
+        buffer.push('[' as u8);
+        if self.gzip {
+            req = req.header(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
 
-            let bytes = bytes::BytesMut::new();
-            let mut encoder = GzEncoder::new(bytes.writer(), Compression::default());
-            serde_json::to_writer(&mut encoder, &serialize_messages(messages)).unwrap();
-            let bytes: bytes::Bytes = encoder.finish()?.into_inner().into();
-            req.header(CONTENT_ENCODING, HeaderValue::from_static("gzip"))
-                .body(reqwest::Body::from(bytes))
+            let mut encoder = GzEncoder::new(&mut buffer, Compression::default());
+            messages.for_each(|msg| serde_json::to_writer(&mut encoder, msg.borrow()).unwrap());
+            encoder.finish()?;
         } else {
-            req.json(&serialize_messages(messages))
-        };
+            messages.for_each(|msg| serde_json::to_writer(&mut buffer, msg.borrow()).unwrap());
+        }
+        buffer.push(']' as u8);
+
+        req = req.body(reqwest::Body::from(buffer));
         Ok(req.send().await?.error_for_status()?)
     }
 }

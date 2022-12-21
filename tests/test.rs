@@ -40,11 +40,12 @@ mod tests {
 
     async fn send_push_notifications(push_notifier: PushNotifier) {
         let n = 10;
-        let msg = create_push_message();
-        let msgs = create_n_notifications(n, msg);
-        let result = push_notifier
-            .send_push_notifications_iter(msgs.iter())
-            .await;
+        let msgs = (0..n).map(|i| {
+            let mut msg = create_push_message();
+            msg.body = Some(i.to_string());
+            msg
+        });
+        let result = push_notifier.send_push_notifications(msgs).await;
         match result {
             Ok(receipts) => {
                 // Ensure we get n receipts back
@@ -78,14 +79,6 @@ mod tests {
     }
     fn create_push_notifier() -> PushNotifier {
         PushNotifier::new().authorization(std::env::var("EXPO_SDK_RUST_TEST_AUTH_TOKEN").ok())
-    }
-
-    fn create_n_notifications(n: i32, msg: PushMessage) -> Vec<PushMessage> {
-        let mut msgs: Vec<PushMessage> = Vec::new();
-        for _ in 0..n {
-            msgs.push(msg.clone());
-        }
-        msgs
     }
 
     fn check_ticket(ticket: PushTicket) {
