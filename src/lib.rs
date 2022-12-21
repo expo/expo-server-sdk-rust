@@ -23,18 +23,20 @@
 //!     println!("Push Notification Response: \n \n {:#?}", result);
 //! }
 //! ```
+
+pub mod error;
+pub mod message;
+pub mod response;
+
 use bytes::BufMut;
+use error::ExpoNotificationError;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use message::{serialize_messages, PushMessage};
 use reqwest::{
     header::{HeaderValue, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE},
     Url,
 };
-pub mod message;
-pub mod response;
-
-use failure::Error;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use response::{PushReceipt, PushResponse};
 use serde_json::value::Value;
 use std::borrow::Borrow;
@@ -78,7 +80,7 @@ impl PushNotifier {
     pub async fn send_push_notification(
         &self,
         message: &PushMessage,
-    ) -> Result<PushReceipt<Value>, Error> {
+    ) -> Result<PushReceipt<Value>, ExpoNotificationError> {
         let mut result = self
             .send_push_notifications_chunk(&[message], false)
             .await?;
@@ -89,7 +91,7 @@ impl PushNotifier {
         &self,
         messages: &[impl Borrow<PushMessage>],
         gzip: bool,
-    ) -> Result<Vec<PushReceipt<Value>>, Error> {
+    ) -> Result<Vec<PushReceipt<Value>>, ExpoNotificationError> {
         let res = self.request_async(messages, gzip).await?;
         let res = res.json::<PushResponse<Value>>().await?;
         Ok(res.data)
@@ -99,7 +101,7 @@ impl PushNotifier {
         &self,
         messages: &[impl Borrow<PushMessage>],
         should_compress: bool,
-    ) -> Result<reqwest::Response, Error> {
+    ) -> Result<reqwest::Response, ExpoNotificationError> {
         let req = self
             .client
             .post(self.url.clone())
