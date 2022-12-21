@@ -6,7 +6,7 @@ mod tests {
 
     use expo_server_sdk::{
         message::{Priority, PushMessage, PushToken, Sound},
-        *,
+        PushNotifier,
     };
 
     #[tokio::test]
@@ -24,22 +24,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn send_push_notifications_default_chunks() {
+    async fn send_push_notifications_gzip() {
         let push_notifier = PushNotifier::new();
-        send_push_notifications(push_notifier).await;
+        send_push_notifications(push_notifier, true, 3).await;
     }
 
     #[tokio::test]
-    async fn send_push_notifications_small_chunks() {
-        let push_notifier = PushNotifier::new().with_pushes_per_request(2);
-        send_push_notifications(push_notifier).await;
+    async fn send_push_notifications_no_gzip() {
+        let push_notifier = PushNotifier::new();
+        send_push_notifications(push_notifier, false, 3).await;
     }
 
-    async fn send_push_notifications(push_notifier: PushNotifier) {
+    async fn send_push_notifications(push_notifier: PushNotifier, gzip: bool, chunk_size: usize) {
         let n = 10;
         let msg = create_push_message();
         let msgs = create_n_notifications(n, msg);
-        let result = push_notifier.send_push_notifications(&msgs).await;
+        let result = push_notifier
+            .send_push_notifications_iter(msgs.iter(), gzip, chunk_size)
+            .await;
 
         if let Ok(receipts) = result {
             // Ensure we get n receipts back

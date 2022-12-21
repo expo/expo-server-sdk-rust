@@ -87,6 +87,35 @@ impl PushNotifier {
         Ok(result.pop().unwrap())
     }
 
+    pub async fn send_push_notifications_iter(
+        &self,
+        messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
+        gzip: bool,
+        chunk_size: usize,
+    ) -> Result<Vec<PushReceipt<Value>>, ExpoNotificationError> {
+        let mut messages = messages.into_iter();
+        let mut chunk = Vec::with_capacity(chunk_size);
+        let mut receipts = Vec::with_capacity(messages.size_hint().1.unwrap_or_default());
+        loop {
+            while let Some(message) = messages.next() {
+                chunk.push(message);
+                if chunk.len() == chunk_size {
+                    break;
+                }
+            }
+            if chunk.is_empty() {
+                break;
+            }
+            receipts.extend(
+                self.send_push_notifications_chunk(&*chunk, gzip)
+                    .await?
+                    .into_iter(),
+            );
+            chunk.clear();
+        }
+        Ok(receipts)
+    }
+
     pub async fn send_push_notifications_chunk(
         &self,
         messages: &[impl Borrow<PushMessage>],
