@@ -57,7 +57,7 @@ use response::{PushReceipt, PushReceiptId, PushResponse, PushTicket, ReceiptResp
 /// # });
 /// ```
 ///
-pub struct PushNotifier {
+pub struct ExpoNotificationsClient {
     pub url: Url,
     pub authorization: Option<String>,
     pub gzip: GzipPolicy,
@@ -65,10 +65,10 @@ pub struct PushNotifier {
     client: reqwest::Client,
 }
 
-impl PushNotifier {
+impl ExpoNotificationsClient {
     /// Create a new PushNotifier client.
-    pub fn new() -> PushNotifier {
-        PushNotifier {
+    pub fn new() -> ExpoNotificationsClient {
+        ExpoNotificationsClient {
             url: "https://exp.host/--/api/v2/push/send".parse().unwrap(),
             authorization: None,
             gzip: Default::default(),
@@ -139,7 +139,7 @@ impl PushNotifier {
         messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
     ) -> Result<Vec<PushTicket>, ExpoNotificationError> {
         let mut buffer = Vec::new();
-        serialize_into_list(messages.into_iter(), &mut buffer)?;
+        serialize_into_json_list(messages.into_iter(), &mut buffer)?;
         let res = self.send_request(buffer).await?;
         let res = res.json::<PushResponse>().await?;
         Ok(res.data)
@@ -175,7 +175,7 @@ impl PushNotifier {
         receipt_ids: impl IntoIterator<Item = impl Borrow<PushReceiptId>>,
     ) -> Result<HashMap<PushReceiptId, PushReceipt>, ExpoNotificationError> {
         let mut buffer: Vec<u8> = "{\"ids\":".as_bytes().into();
-        serialize_into_list(receipt_ids.into_iter(), &mut buffer)?;
+        serialize_into_json_list(receipt_ids.into_iter(), &mut buffer)?;
         buffer.push('}' as u8);
         let res = self.send_request(buffer).await?;
         let res = res.json::<ReceiptResponse>().await?;
@@ -222,7 +222,7 @@ impl PushNotifier {
     }
 }
 
-fn serialize_into_list<T: Serialize>(
+fn serialize_into_json_list<T: Serialize>(
     mut data: impl Iterator<Item = impl Borrow<T>>,
     mut buffer: &mut Vec<u8>,
 ) -> Result<(), ExpoNotificationError> {

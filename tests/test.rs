@@ -7,7 +7,7 @@ mod tests {
     use expo_server_sdk::{
         message::{Priority, PushMessage, PushToken, Sound},
         response::PushTicket,
-        PushNotifier,
+        ExpoNotificationsClient,
     };
 
     #[tokio::test]
@@ -38,7 +38,7 @@ mod tests {
         send_push_notifications(push_notifier).await;
     }
 
-    async fn send_push_notifications(push_notifier: PushNotifier) {
+    async fn send_push_notifications(push_notifier: ExpoNotificationsClient) {
         let n = 10;
         let msgs = (0..n).map(|i| {
             let mut msg = create_push_message();
@@ -77,8 +77,9 @@ mod tests {
             badge: None,
         }
     }
-    fn create_push_notifier() -> PushNotifier {
-        PushNotifier::new().authorization(std::env::var("EXPO_SDK_RUST_TEST_AUTH_TOKEN").ok())
+    fn create_push_notifier() -> ExpoNotificationsClient {
+        ExpoNotificationsClient::new()
+            .authorization(std::env::var("EXPO_SDK_RUST_TEST_AUTH_TOKEN").ok())
     }
 
     fn check_ticket(ticket: PushTicket) {
