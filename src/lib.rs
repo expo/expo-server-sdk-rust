@@ -58,10 +58,12 @@ use response::{PushReceipt, PushReceiptId, PushResponse, PushTicket, ReceiptResp
 /// ```
 ///
 pub struct ExpoNotificationsClient {
-    pub url: Url,
+    pub push_url: Url,
+    pub receipt_url: Url,
     pub authorization: Option<String>,
     pub gzip: GzipPolicy,
-    pub chunk_size: usize,
+    pub push_chunk_size: usize,
+    pub receipt_chunk_size: usize,
     client: reqwest::Client,
 }
 
@@ -69,18 +71,29 @@ impl ExpoNotificationsClient {
     /// Create a new PushNotifier client.
     pub fn new() -> ExpoNotificationsClient {
         ExpoNotificationsClient {
-            url: "https://exp.host/--/api/v2/push/send".parse().unwrap(),
+            push_url: "https://exp.host/--/api/v2/push/send".parse().unwrap(),
+            receipt_url: "https://exp.host/--/api/v2/push/getReceipts"
+                .parse()
+                .unwrap(),
             authorization: None,
             gzip: Default::default(),
-            chunk_size: 100,
+            push_chunk_size: 100,
+            receipt_chunk_size: 300,
             client: reqwest::Client::builder().gzip(true).build().unwrap(),
         }
     }
 
-    /// Specify the URL to the push notification server.
+    /// Specify the URL to the push notification server push endpoint.
     /// Default is the Expo push notification server.
-    pub fn url(mut self, url: Url) -> Self {
-        self.url = url;
+    pub fn push_url(mut self, url: Url) -> Self {
+        self.push_url = url;
+        self
+    }
+
+    /// Specify the URL to the push notification server getReceipts endpoint.
+    /// Default is the Expo push notification server.
+    pub fn receipt_url(mut self, url: Url) -> Self {
+        self.receipt_url = url;
         self
     }
 
@@ -96,9 +109,15 @@ impl ExpoNotificationsClient {
         self
     }
 
-    // Specify the chunk size to use for `send_push_notifications_iter`. Should not be greater than 100.
-    pub fn chunk_size(mut self, chunk_size: usize) -> Self {
-        self.chunk_size = chunk_size;
+    // Specify the chunk size to use for `send_push_notifications`. Should not be greater than 100 (the default).
+    pub fn push_chunk_size(mut self, chunk_size: usize) -> Self {
+        self.push_chunk_size = chunk_size;
+        self
+    }
+
+    // Specify the chunk size to use for `get_push_receipts`. Should not be greater than 300 (the default).
+    pub fn receipt_chunk_size(mut self, chunk_size: usize) -> Self {
+        self.receipt_chunk_size = chunk_size;
         self
     }
 
@@ -123,7 +142,7 @@ impl ExpoNotificationsClient {
         let mut receipts = Vec::with_capacity(messages.size_hint().1.unwrap_or(0));
         while messages.peek().is_some() {
             let chunk_receipts = self
-                .send_push_notifications_in_one_chunk(messages.by_ref().take(self.chunk_size))
+                .send_push_notifications_in_one_chunk(messages.by_ref().take(self.push_chunk_size))
                 .await?;
             receipts.extend(chunk_receipts.into_iter());
         }
@@ -140,11 +159,12 @@ impl ExpoNotificationsClient {
     ) -> Result<Vec<PushTicket>, ExpoNotificationError> {
         let mut buffer = Vec::new();
         serialize_into_json_list(messages.into_iter(), &mut buffer)?;
-        let res = self.send_request(buffer).await?;
+        let res = self.send_request(self.push_url.clone(), buffer).await?;
         let res = res.json::<PushResponse>().await?;
         Ok(res.data)
     }
 
+    /// Get a push notification receipt.
     pub async fn get_push_receipt(
         &self,
         receipt_id: &PushReceiptId,
@@ -155,6 +175,7 @@ impl ExpoNotificationsClient {
         Ok(result.into_values().next())
     }
 
+    /// Get many push notification receipts.
     pub async fn get_push_receipts(
         &self,
         receipt_ids: impl IntoIterator<Item = impl Borrow<PushReceiptId>>,
@@ -163,13 +184,14 @@ impl ExpoNotificationsClient {
         let mut out = HashMap::new();
         while ids.peek().is_some() {
             let chunk_receipts = self
-                .get_push_receipts_in_one_chunk(ids.by_ref().take(self.chunk_size))
+                .get_push_receipts_in_one_chunk(ids.by_ref().take(self.receipt_chunk_size))
                 .await?;
             out.extend(chunk_receipts.into_iter());
         }
         Ok(out)
     }
 
+    /// Get push notification receipts in one request. Avoid sending more than 300 receipt ids.
     pub async fn get_push_receipts_in_one_chunk(
         &self,
         receipt_ids: impl IntoIterator<Item = impl Borrow<PushReceiptId>>,
@@ -177,18 +199,19 @@ impl ExpoNotificationsClient {
         let mut buffer: Vec<u8> = "{\"ids\":".as_bytes().into();
         serialize_into_json_list(receipt_ids.into_iter(), &mut buffer)?;
         buffer.push('}' as u8);
-        let res = self.send_request(buffer).await?;
+        let res = self.send_request(self.receipt_url.clone(), buffer).await?;
         let res = res.json::<ReceiptResponse>().await?;
         Ok(res.data)
     }
 
     async fn send_request(
         &self,
+        url: Url,
         buffer: Vec<u8>,
     ) -> Result<reqwest::Response, ExpoNotificationError> {
         let mut req = self
             .client
-            .post(self.url.clone())
+            .post(url)
             .header(ACCEPT, HeaderValue::from_static("application/json"))
             .header(ACCEPT_ENCODING, HeaderValue::from_static("gzip"))
             .header(ACCEPT_ENCODING, HeaderValue::from_static("deflate"))
