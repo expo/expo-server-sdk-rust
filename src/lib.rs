@@ -28,10 +28,7 @@ pub mod error;
 pub mod message;
 pub mod response;
 
-use bytes::BufMut;
 use error::ExpoNotificationError;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use message::{serialize_messages, PushMessage};
 use reqwest::{
     header::{HeaderValue, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE},
@@ -170,6 +167,10 @@ impl PushNotifier {
         }
 
         let req = if self.gzip {
+            use bytes::BufMut;
+            use flate2::write::GzEncoder;
+            use flate2::Compression;
+
             let bytes = bytes::BytesMut::new();
             let mut encoder = GzEncoder::new(bytes.writer(), Compression::default());
             serde_json::to_writer(&mut encoder, &serialize_messages(messages)).unwrap();
