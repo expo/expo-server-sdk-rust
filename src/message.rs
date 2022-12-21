@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::str::FromStr;
+use std::{borrow::Borrow, str::FromStr};
 
 /// A PushToken must be of the format `ExpoPushToken[xxx]` or `ExponentPushToken[xxx]`.
 #[derive(Debug, Serialize, Clone)]
@@ -180,4 +180,20 @@ impl PushMessage {
         self.badge = Some(badge);
         self
     }
+}
+
+pub(crate) fn serialize_messages<'a>(
+    messages: &'a [impl Borrow<PushMessage>],
+) -> impl Serialize + 'a {
+    struct IterSerializer<'a, T>(&'a [T]);
+
+    impl<'a, T: Borrow<PushMessage>> Serialize for IterSerializer<'a, T> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.collect_seq(self.0.iter().map(|item| item.borrow()))
+        }
+    }
+    IterSerializer(messages)
 }

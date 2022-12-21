@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-pub struct PushResponse<T>
+pub(crate) struct PushResponse<T>
 where
     T: std::fmt::Debug,
 {
