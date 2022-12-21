@@ -25,8 +25,12 @@
 //! ```
 
 pub mod error;
+mod gzip_policy;
 pub mod message;
 pub mod response;
+pub use gzip_policy::GzipPolicy;
+
+use std::borrow::Borrow;
 
 use error::ExpoNotificationError;
 use message::PushMessage;
@@ -35,7 +39,6 @@ use reqwest::{
     Url,
 };
 use response::{PushResponse, PushTicket};
-use std::borrow::Borrow;
 
 /// The `PushNotifier` takes one or more `PushMessage` to send to the push notification server
 ///
@@ -56,7 +59,7 @@ use std::borrow::Borrow;
 pub struct PushNotifier {
     pub url: Url,
     pub authorization: Option<String>,
-    pub gzip: bool,
+    pub gzip: GzipPolicy,
     pub chunk_size: usize,
     client: reqwest::Client,
 }
@@ -67,7 +70,7 @@ impl PushNotifier {
         PushNotifier {
             url: "https://exp.host/--/api/v2/push/send".parse().unwrap(),
             authorization: None,
-            gzip: true,
+            gzip: Default::default(),
             chunk_size: 100,
             client: reqwest::Client::builder().gzip(true).build().unwrap(),
         }
@@ -87,7 +90,7 @@ impl PushNotifier {
     }
 
     /// Specify whether to compress the outgoing requests with gzip.
-    pub fn gzip(mut self, gzip: bool) -> Self {
+    pub fn gzip(mut self, gzip: GzipPolicy) -> Self {
         self.gzip = gzip;
         self
     }
@@ -128,10 +131,8 @@ impl PushNotifier {
 
     /// Send a single chunk of [`PushMessage`] to the server.
     ///
-    /// This method makes a single request.
-    ///
     /// If the provided messages chunk contains more than 100 items this might fail.
-    /// Prefer the `send_push_notification_iter` in such situation.
+    /// Prefer the `send_push_notifications` in such situation.
     pub async fn send_push_notifications_in_one_chunk(
         &self,
         messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
@@ -143,10 +144,8 @@ impl PushNotifier {
 
     async fn request_async(
         &self,
-        messages: impl Iterator<Item = impl Borrow<PushMessage>>,
+        mut messages: impl Iterator<Item = impl Borrow<PushMessage>>,
     ) -> Result<reqwest::Response, ExpoNotificationError> {
-        use flate2::write::GzEncoder;
-        use flate2::Compression;
         let mut req = self
             .client
             .post(self.url.clone())
@@ -160,19 +159,36 @@ impl PushNotifier {
         }
 
         let mut buffer = Vec::new();
-        buffer.push('[' as u8);
-        if self.gzip {
-            req = req.header(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
 
-            let mut encoder = GzEncoder::new(&mut buffer, Compression::default());
-            messages.for_each(|msg| serde_json::to_writer(&mut encoder, msg.borrow()).unwrap());
-            encoder.finish()?;
-        } else {
-            messages.for_each(|msg| serde_json::to_writer(&mut buffer, msg.borrow()).unwrap());
-        }
+        buffer.push('[' as u8);
+        let first_msg = messages.next().ok_or(ExpoNotificationError::Empty)?;
+        serde_json::to_writer(&mut buffer, first_msg.borrow()).unwrap();
+        messages.for_each(|msg| {
+            buffer.push(',' as u8);
+            serde_json::to_writer(&mut buffer, msg.borrow()).unwrap();
+        });
         buffer.push(']' as u8);
 
-        req = req.body(reqwest::Body::from(buffer));
+        let should_compress = match self.gzip {
+            GzipPolicy::ZipGreaterThanTreshold(tres) if buffer.len() > tres => true,
+            GzipPolicy::Always => true,
+            _ => false,
+        };
+
+        let body = if should_compress {
+            use flate2::write::GzEncoder;
+            use flate2::Compression;
+            use std::io::Write;
+
+            req = req.header(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+            let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+            encoder.write(&buffer)?;
+            encoder.finish()?
+        } else {
+            buffer
+        };
+
+        req = req.body(body);
         Ok(req.send().await?.error_for_status()?)
     }
 }

@@ -28,13 +28,13 @@ mod tests {
 
     #[tokio::test]
     async fn send_push_notifications_gzip() {
-        let push_notifier = create_push_notifier().gzip(true);
+        let push_notifier = create_push_notifier().gzip(expo_server_sdk::GzipPolicy::Always);
         send_push_notifications(push_notifier).await;
     }
 
     #[tokio::test]
     async fn send_push_notifications_no_gzip() {
-        let push_notifier = create_push_notifier().gzip(false);
+        let push_notifier = create_push_notifier().gzip(expo_server_sdk::GzipPolicy::Never);
         send_push_notifications(push_notifier).await;
     }
 

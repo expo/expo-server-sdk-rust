@@ -4,6 +4,8 @@ pub enum ExpoNotificationError {
     Request(reqwest::Error),
     #[error("IO error: {0}")]
     Io(std::io::Error),
+    #[error("nothing to send")]
+    Empty,
 }
 
 impl From<reqwest::Error> for ExpoNotificationError {
