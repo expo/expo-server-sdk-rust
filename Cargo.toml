@@ -1,6 +1,6 @@
 [package]
 name = "expo-server-sdk"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["quin <quin@expo.io>"]
 description = "Server side library for working with Expo using Rust. Includes a client to send push notifications to users of your mobile app using the Expo push notification services."
@@ -21,5 +21,10 @@ thiserror = "1"
 flate2 = "1.0"
 
 [dev-dependencies]
-tokio = {version = "1.23", features = ["macros"]}
+tokio = {version = "1", features = ["macros"]}
 tokio-test = "0.4"
+
+[workspace]
+members = [
+	"cli/"
+]
