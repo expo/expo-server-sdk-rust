@@ -9,14 +9,14 @@
 //! ## Example: Sending a push notification
 //!
 //! ```
-//! # use expo_server_sdk::{PushNotifier, message::*};
+//! # use expo_server_sdk::{ExpoNotificationsClient, message::*};
 //! # use std::str::FromStr;
 //! # tokio_test::block_on(async {
 //! let token = PushToken::from_str("ExpoPushToken[my-token]").unwrap();
 //! let mut msg = PushMessage::new(token).body("test notification");
 //!
-//! let push_notifier = PushNotifier::new();
-//! let result = push_notifier.send_push_notification(&msg).await;
+//! let client = ExpoNotificationsClient::new();
+//! let result = client.send_push_notification(&msg).await;
 //!
 //! if let Ok(result) = result {
 //!     println!("Push Notification Response: \n \n {:#?}", result);
@@ -46,14 +46,14 @@ use response::{PushReceipt, PushReceiptId, PushResponse, PushTicket, ReceiptResp
 /// ## Example:
 ///
 /// ```
-/// # use expo_server_sdk::{PushNotifier, message::*};
+/// # use expo_server_sdk::{ExpoNotificationsClient, message::*};
 /// # use std::str::FromStr;
 /// # tokio_test::block_on(async {
 ///     let token = PushToken::from_str("ExpoPushToken[my-token]").unwrap();
 ///     let mut msg = PushMessage::new(token).body("test notification");
 ///
-///     let push_notifier = PushNotifier::new();
-///     let result = push_notifier.send_push_notification(&msg);
+///     let client = ExpoNotificationsClient::new();
+///     let result = client.send_push_notification(&msg).await;
 /// # });
 /// ```
 ///
