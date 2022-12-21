@@ -73,23 +73,26 @@ impl PushNotifier {
         }
     }
 
-    /// Specify the URL to the push notification server
+    /// Specify the URL to the push notification server.
     /// Default is the Expo push notification server.
     pub fn url(mut self, url: Url) -> Self {
         self.url = url;
         self
     }
 
+    /// Specify the authorization token (if enhanced push security is enabled).
     pub fn authorization(mut self, token: Option<String>) -> Self {
         self.authorization = token;
         self
     }
 
+    /// Specify whether to compress the outgoing requests with gzip.
     pub fn gzip(mut self, gzip: bool) -> Self {
         self.gzip = gzip;
         self
     }
 
+    // Specify the chunk size to use for `send_push_notifications_iter`. Should not be greater than 100.
     pub fn chunk_size(mut self, chunk_size: usize) -> Self {
         self.chunk_size = chunk_size;
         self
@@ -104,9 +107,8 @@ impl PushNotifier {
         Ok(result.pop().unwrap())
     }
 
-    /// Sends an iterator of [`PushMessage`] to the server, chunking at the specified chunk size.
-    ///
-    /// The chunk size should not exceed 100.
+    /// Sends an iterator of [`PushMessage`] to the server.
+    /// This method automatically chunks the input message iterator.
     pub async fn send_push_notifications_iter(
         &self,
         messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
