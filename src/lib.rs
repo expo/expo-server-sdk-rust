@@ -29,8 +29,9 @@ mod gzip_policy;
 pub mod message;
 pub mod response;
 pub use gzip_policy::GzipPolicy;
+use serde::Serialize;
 
-use std::borrow::Borrow;
+use std::{borrow::Borrow, collections::HashMap};
 
 use error::ExpoNotificationError;
 use message::PushMessage;
@@ -38,7 +39,7 @@ use reqwest::{
     header::{HeaderValue, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE},
     Url,
 };
-use response::{PushResponse, PushTicket};
+use response::{PushReceipt, PushReceiptId, PushResponse, PushTicket, ReceiptResponse};
 
 /// The `PushNotifier` takes one or more `PushMessage` to send to the push notification server
 ///
@@ -137,14 +138,53 @@ impl PushNotifier {
         &self,
         messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
     ) -> Result<Vec<PushTicket>, ExpoNotificationError> {
-        let res = self.request_async(messages.into_iter()).await?;
+        let mut buffer = Vec::new();
+        serialize_into_list(messages.into_iter(), &mut buffer)?;
+        let res = self.send_request(buffer).await?;
         let res = res.json::<PushResponse>().await?;
         Ok(res.data)
     }
 
-    async fn request_async(
+    pub async fn get_push_receipt(
         &self,
-        mut messages: impl Iterator<Item = impl Borrow<PushMessage>>,
+        receipt_id: &PushReceiptId,
+    ) -> Result<Option<PushReceipt>, ExpoNotificationError> {
+        let result = self
+            .get_push_receipts_in_one_chunk(std::iter::once(receipt_id))
+            .await?;
+        Ok(result.into_values().next())
+    }
+
+    pub async fn get_push_receipts(
+        &self,
+        receipt_ids: impl IntoIterator<Item = impl Borrow<PushReceiptId>>,
+    ) -> Result<HashMap<PushReceiptId, PushReceipt>, ExpoNotificationError> {
+        let mut ids = receipt_ids.into_iter().peekable();
+        let mut out = HashMap::new();
+        while ids.peek().is_some() {
+            let chunk_receipts = self
+                .get_push_receipts_in_one_chunk(ids.by_ref().take(self.chunk_size))
+                .await?;
+            out.extend(chunk_receipts.into_iter());
+        }
+        Ok(out)
+    }
+
+    pub async fn get_push_receipts_in_one_chunk(
+        &self,
+        receipt_ids: impl IntoIterator<Item = impl Borrow<PushReceiptId>>,
+    ) -> Result<HashMap<PushReceiptId, PushReceipt>, ExpoNotificationError> {
+        let mut buffer: Vec<u8> = "{\"ids\":".as_bytes().into();
+        serialize_into_list(receipt_ids.into_iter(), &mut buffer)?;
+        buffer.push('}' as u8);
+        let res = self.send_request(buffer).await?;
+        let res = res.json::<ReceiptResponse>().await?;
+        Ok(res.data)
+    }
+
+    async fn send_request(
+        &self,
+        buffer: Vec<u8>,
     ) -> Result<reqwest::Response, ExpoNotificationError> {
         let mut req = self
             .client
@@ -158,19 +198,8 @@ impl PushNotifier {
             req = req.bearer_auth(auth_token);
         }
 
-        let mut buffer = Vec::new();
-
-        buffer.push('[' as u8);
-        let first_msg = messages.next().ok_or(ExpoNotificationError::Empty)?;
-        serde_json::to_writer(&mut buffer, first_msg.borrow()).unwrap();
-        messages.for_each(|msg| {
-            buffer.push(',' as u8);
-            serde_json::to_writer(&mut buffer, msg.borrow()).unwrap();
-        });
-        buffer.push(']' as u8);
-
         let should_compress = match self.gzip {
-            GzipPolicy::ZipGreaterThanTreshold(tres) if buffer.len() > tres => true,
+            GzipPolicy::ZipGreaterThanTreshold(treshold) if buffer.len() > treshold => true,
             GzipPolicy::Always => true,
             _ => false,
         };
@@ -191,4 +220,19 @@ impl PushNotifier {
         req = req.body(body);
         Ok(req.send().await?.error_for_status()?)
     }
+}
+
+fn serialize_into_list<T: Serialize>(
+    mut data: impl Iterator<Item = impl Borrow<T>>,
+    mut buffer: &mut Vec<u8>,
+) -> Result<(), ExpoNotificationError> {
+    buffer.push('[' as u8);
+    let first_msg = data.next().ok_or(ExpoNotificationError::Empty)?;
+    serde_json::to_writer(&mut buffer, first_msg.borrow()).unwrap();
+    data.for_each(|msg| {
+        buffer.push(',' as u8);
+        serde_json::to_writer(&mut buffer, msg.borrow()).unwrap();
+    });
+    buffer.push(']' as u8);
+    Ok(())
 }
