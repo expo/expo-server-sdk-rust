@@ -59,13 +59,16 @@ use std::borrow::Borrow;
 ///
 pub struct PushNotifier {
     pub url: Url,
+    pub authorization: Option<String>,
     client: reqwest::Client,
 }
 
 impl PushNotifier {
+    /// Create a new PushNotifier client.
     pub fn new() -> PushNotifier {
         PushNotifier {
             url: "https://exp.host/--/api/v2/push/send".parse().unwrap(),
+            authorization: None,
             client: reqwest::Client::builder().gzip(true).build().unwrap(),
         }
     }
@@ -73,11 +76,16 @@ impl PushNotifier {
     /// Specify the URL to the push notification server
     /// Default is the Expo push notification server.
     pub fn url(mut self, url: Url) -> Self {
-        self.url = url.into();
+        self.url = url;
         self
     }
 
-    /// Sends a single `PushMessage` to the push notification server.
+    pub fn authorization(mut self, token: Option<String>) -> Self {
+        self.authorization = token;
+        self
+    }
+
+    /// Sends a single [`PushMessage`] to the push notification server.
     pub async fn send_push_notification(
         &self,
         message: &PushMessage,
@@ -88,6 +96,9 @@ impl PushNotifier {
         Ok(result.pop().unwrap())
     }
 
+    /// Sends an iterator of [`PushMessage`] to the server, chunking at the specified chunk size.
+    ///
+    /// The chunk size should not exceed 100.
     pub async fn send_push_notifications_iter(
         &self,
         messages: impl IntoIterator<Item = impl Borrow<PushMessage>>,
@@ -117,6 +128,12 @@ impl PushNotifier {
         Ok(receipts)
     }
 
+    /// Send a single chunk of [`PushMessage`] to the server.
+    ///
+    /// This method makes a single request.
+    ///
+    /// If the provided messages chunk contains more than 100 items this might fail.
+    /// Prefer the `send_push_notification_iter` in such situation.
     pub async fn send_push_notifications_chunk(
         &self,
         messages: &[impl Borrow<PushMessage>],
@@ -132,13 +149,17 @@ impl PushNotifier {
         messages: &[impl Borrow<PushMessage>],
         should_compress: bool,
     ) -> Result<reqwest::Response, ExpoNotificationError> {
-        let req = self
+        let mut req = self
             .client
             .post(self.url.clone())
             .header(ACCEPT, HeaderValue::from_static("application/json"))
             .header(ACCEPT_ENCODING, HeaderValue::from_static("gzip"))
             .header(ACCEPT_ENCODING, HeaderValue::from_static("deflate"))
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+        if let Some(auth_token) = self.authorization.as_ref() {
+            req = req.bearer_auth(auth_token);
+        }
 
         let req = if should_compress {
             let bytes = bytes::BytesMut::new();
