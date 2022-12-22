@@ -34,6 +34,14 @@ impl TryFrom<String> for PushToken {
     }
 }
 
+impl FromStr for PushToken {
+    type Err = PushTokenParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_from(s.to_string())
+    }
+}
+
 /// The delivery priority of the message. Specify "default" or omit this field
 /// to use the default priority on each platform, which is "normal" on Android
 /// and "high" on iOS.
