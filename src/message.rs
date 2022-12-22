@@ -6,16 +6,30 @@ use std::str::FromStr;
 #[derive(Debug, Serialize, Clone)]
 pub struct PushToken(String);
 
-impl FromStr for PushToken {
-    type Err = String;
+impl<'de> Deserialize<'de> for PushToken {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        TryFrom::try_from(s).map_err(serde::de::Error::custom)
+    }
+}
 
-    fn from_str(s: &str) -> Result<PushToken, Self::Err> {
+#[derive(Debug, thiserror::Error)]
+#[error("expect format `ExpoPushToken[xxx]` or `ExponentPushToken[xxx]` but given {0}")]
+pub struct PushTokenParseError(String);
+
+impl TryFrom<String> for PushToken {
+    type Error = PushTokenParseError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
         if (s.starts_with("ExponentPushToken[") || s.starts_with("ExpoPushToken["))
             && s.ends_with("]")
         {
-            Ok(PushToken(s.to_string()))
+            Ok(PushToken(s))
         } else {
-            Err(format!("A PushToken must be of the format `ExpoPushToken[xxx]` or `ExponentPushToken[xxx]`. Was given: {}", s))
+            Err(PushTokenParseError(s))
         }
     }
 }

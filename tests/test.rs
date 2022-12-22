@@ -2,7 +2,7 @@ extern crate expo_server_sdk;
 
 #[cfg(test)]
 mod tests {
-    use std::{str::FromStr, time::Duration};
+    use std::time::Duration;
 
     use expo_server_sdk::{
         message::{Priority, PushMessage, PushToken, Sound},
@@ -78,8 +78,8 @@ mod tests {
 
     fn create_push_message() -> PushMessage {
         PushMessage {
-            to: PushToken::from_str(
-                &std::env::var("EXPO_SDK_RUST_TEST_PUSH_TOKEN")
+            to: PushToken::try_from(
+                std::env::var("EXPO_SDK_RUST_TEST_PUSH_TOKEN")
                     .unwrap_or("ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]".into()),
             )
             .unwrap(),
