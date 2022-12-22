@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::message::PushToken;
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct PushResponse {
     pub data: Vec<PushTicket>,
@@ -40,16 +42,15 @@ pub enum PushReceipt {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "error")]
 pub enum PushReceiptErrorDetails {
-    KnownError { error: PushReceiptErrorCause },
-    UnknownError(serde_json::Value),
-}
-
-#[derive(Debug, Deserialize)]
-pub enum PushReceiptErrorCause {
-    DeviceNotRegistered,
-    InvalidCredentials,
-    MessageTooBig,
-    MessageRateExceeded,
+    DeviceNotRegistered {
+        #[serde(rename = "expoPushToken")]
+        expo_push_token: PushToken,
+    },
+    InvalidCredentials {},
+    MessageTooBig {},
+    MessageRateExceeded {},
+    #[serde(other)]
+    UnknownError,
 }
