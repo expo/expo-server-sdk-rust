@@ -1,4 +1,4 @@
-⚠️ This Rust push notifications client library is no longer actively maintained. We recommend using [expo-push-notificaton-client-rush](https://github.com/katayama8000/expo-push-notification-client-rust).
+⚠️ This Rust push notifications client library is no longer actively maintained. We recommend using [expo-push-notificaton-client-rust](https://github.com/katayama8000/expo-push-notification-client-rust).
 
 # Expo Push Notification Rust Client
 
